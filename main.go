@@ -45,7 +45,7 @@ func getLogs() []LogEntry {
 	return result
 }
 
-const version = "v0.2.0"
+const version = "v0.2.0-pr3"
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
