@@ -1,20 +1,21 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
-	"net/http"
 	"sync"
 	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 // 日志存储
 var (
-	logStore   []LogEntry
-	logMutex   sync.RWMutex
+	logStore []LogEntry
+	logMutex sync.RWMutex
 )
 
 type LogEntry struct {
@@ -43,6 +44,8 @@ func getLogs() []LogEntry {
 	copy(result, logStore)
 	return result
 }
+
+const version = "v0.2.0-pr3"
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -111,6 +114,16 @@ const html = `<!DOCTYPE html>
             color: #0d1117;
             font-family: "KaiTi", "STKaiti", "楷体", serif;
             font-weight: bold;
+        }
+        .nav-version {
+            padding: 2px 7px;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 0.04em;
+            user-select: none;
+            flex-shrink: 0;
         }
         .navbar-search {
             width: 280px;
@@ -213,7 +226,6 @@ const html = `<!DOCTYPE html>
             transition: right 0.35s cubic-bezier(0.16, 1, 0.3, 1);
         }
         .log-panel.open { right: 0; }
-
         .log-panel-header {
             display: flex;
             align-items: center;
@@ -258,7 +270,6 @@ const html = `<!DOCTYPE html>
         .log-list::-webkit-scrollbar { width: 4px; }
         .log-list::-webkit-scrollbar-track { background: transparent; }
         .log-list::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
-
         .log-item {
             display: flex;
             align-items: center;
@@ -271,34 +282,17 @@ const html = `<!DOCTYPE html>
             animation: fadeIn 0.3s ease;
         }
         @keyframes fadeIn { from { opacity: 0; transform: translateY(-6px); } to { opacity: 1; transform: translateY(0); } }
-        .log-time {
-            color: rgba(255,255,255,0.3);
-            flex-shrink: 0;
-            font-size: 0.7rem;
-        }
+        .log-time { color: rgba(255,255,255,0.3); flex-shrink: 0; font-size: 0.7rem; }
         .log-level {
-            padding: 2px 6px;
-            border-radius: 3px;
-            font-size: 0.65rem;
-            font-weight: 700;
-            flex-shrink: 0;
-            background: rgba(88,166,255,0.15);
-            color: #58a6ff;
+            padding: 2px 6px; border-radius: 3px;
+            font-size: 0.65rem; font-weight: 700; flex-shrink: 0;
+            background: rgba(88,166,255,0.15); color: #58a6ff;
         }
-        .log-msg {
-            color: #c9d1d9;
-            flex: 1;
-        }
-        .log-random {
-            color: #bc8cff;
-            font-weight: 700;
-            flex-shrink: 0;
-        }
+        .log-msg { color: #c9d1d9; flex: 1; }
+        .log-random { color: #bc8cff; font-weight: 700; flex-shrink: 0; }
         .log-empty {
-            text-align: center;
-            color: rgba(255,255,255,0.15);
-            margin-top: 40px;
-            font-size: 0.85rem;
+            text-align: center; color: rgba(255,255,255,0.15);
+            margin-top: 40px; font-size: 0.85rem;
         }
 
         /* ===== 页眉 ===== */
@@ -336,13 +330,10 @@ const html = `<!DOCTYPE html>
             -webkit-backdrop-filter: blur(20px);
             box-shadow: 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
         }
-
         .card-totem { flex-shrink: 0; }
         #totem { width: 280px; height: 280px; }
-
         .card-divider {
-            width: 1px;
-            height: 200px;
+            width: 1px; height: 200px;
             background: linear-gradient(
                 to bottom,
                 transparent,
@@ -352,39 +343,84 @@ const html = `<!DOCTYPE html>
             );
             flex-shrink: 0;
         }
-
         .card-info {
             display: flex;
             flex-direction: column;
             gap: 1.2rem;
             min-width: 260px;
         }
-        .card-date {
-            font-size: 1.3rem;
-            color: #8b949e;
-            letter-spacing: 0.05em;
-        }
-        .card-weekday {
-            font-size: 1rem;
-            color: rgba(255,255,255,0.25);
-            margin-top: 0.3rem;
-        }
-        .card-time-wrap {
-            display: flex;
-            align-items: baseline;
-        }
+        .card-date { font-size: 1.3rem; color: #8b949e; letter-spacing: 0.05em; }
+        .card-weekday { font-size: 1rem; color: rgba(255,255,255,0.25); margin-top: 0.3rem; }
+        .card-time-wrap { display: flex; align-items: baseline; }
         .card-time {
-            font-size: 3.6rem;
-            font-weight: 700;
-            color: #e6edf3;
-            letter-spacing: 0.04em;
-            font-variant-numeric: tabular-nums;
+            font-size: 3.6rem; font-weight: 700; color: #e6edf3;
+            letter-spacing: 0.04em; font-variant-numeric: tabular-nums;
         }
-        .card-millis {
-            font-size: 1.6rem;
-            font-weight: 400;
-            color: #bc8cff;
-            margin-left: 0.1rem;
+        .card-millis { font-size: 1.6rem; font-weight: 400; color: #bc8cff; margin-left: 0.1rem; }
+
+        /* ===== GitHub 统计面板 ===== */
+        .stats-panel {
+            position: relative;
+            z-index: 1;
+            margin-top: 2rem;
+            width: 100%;
+            max-width: 620px;
+            background: rgba(22,27,34,0.65);
+            border: 1px solid rgba(255,255,255,0.08);
+            border-radius: 16px;
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            padding: 1.5rem 2rem;
+        }
+        .stats-panel h3 {
+            font-size: 0.85rem;
+            color: #8b949e;
+            letter-spacing: 0.06em;
+            margin-bottom: 1rem;
+        }
+        .stats-panel h3 a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .stats-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 1rem;
+        }
+        .stat-card {
+            text-align: center;
+            padding: 0.8rem 0.5rem;
+            border-radius: 8px;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.04);
+        }
+        .stat-card .stat-num {
+            font-size: 1.8rem;
+            font-weight: 700;
+            letter-spacing: 0.02em;
+        }
+        .stat-card .stat-label {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.3);
+            margin-top: 0.3rem;
+            letter-spacing: 0.04em;
+        }
+        .stat-open .stat-num { color: #69db7c; }
+        .stat-closed .stat-num { color: #8b949e; }
+        .stat-merged .stat-num { color: #bc8cff; }
+        .stat-total .stat-num { color: #58a6ff; }
+        .stats-sub {
+            margin-top: 1.2rem;
+            display: flex;
+            gap: 2rem;
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.25);
+        }
+        .stats-sync {
+            margin-top: 0.8rem;
+            font-size: 0.68rem;
+            color: rgba(255,255,255,0.15);
+            letter-spacing: 0.04em;
         }
 
         /* ===== Footer ===== */
@@ -403,6 +439,7 @@ const html = `<!DOCTYPE html>
             .navbar-search:focus { width: 220px; }
             .nav-btn { padding: 6px 10px; font-size: 0.72rem; }
             .log-panel { width: 320px; right: -340px; }
+            .stats-grid { grid-template-columns: repeat(2, 1fr); }
         }
         @media (max-width: 750px) {
             .navbar { padding: 0 12px; }
@@ -416,8 +453,7 @@ const html = `<!DOCTYPE html>
                 padding: 2rem;
             }
             .card-divider {
-                width: 200px;
-                height: 1px;
+                width: 200px; height: 1px;
                 background: linear-gradient(
                     to right,
                     transparent,
@@ -426,12 +462,10 @@ const html = `<!DOCTYPE html>
                     transparent
                 );
             }
-            .card-info {
-                align-items: center;
-                text-align: center;
-            }
+            .card-info { align-items: center; text-align: center; }
             #totem { width: 220px; height: 220px; }
             .header h1 { font-size: 2.2rem; letter-spacing: 0.2em; }
+            .stats-panel { max-width: 100%; border-radius: 0; }
         }
     </style>
 </head>
@@ -444,6 +478,7 @@ const html = `<!DOCTYPE html>
                 <span class="logo-icon">贾</span>
                 prj_cc_hello02
             </a>
+            <span class="nav-version" id="version"></span>
             <input type="text" class="navbar-search" placeholder="Search or type a command...">
         </div>
         <div class="navbar-right">
@@ -487,6 +522,33 @@ const html = `<!DOCTYPE html>
                 <span class="card-time" id="time"></span><span class="card-millis" id="millis"></span>
             </div>
         </div>
+    </div>
+
+    <div class="stats-panel">
+        <h3><a href="https://github.com/larksuite/cli" target="_blank">larksuite/cli</a> Repository Stats</h3>
+        <div class="stats-grid">
+            <div class="stat-card stat-open">
+                <div class="stat-num" id="stat-issues-open">-</div>
+                <div class="stat-label">Issues Open</div>
+            </div>
+            <div class="stat-card stat-closed">
+                <div class="stat-num" id="stat-issues-closed">-</div>
+                <div class="stat-label">Issues Closed</div>
+            </div>
+            <div class="stat-card stat-open">
+                <div class="stat-num" id="stat-prs-open">-</div>
+                <div class="stat-label">PRs Open</div>
+            </div>
+            <div class="stat-card stat-merged">
+                <div class="stat-num" id="stat-prs-merged">-</div>
+                <div class="stat-label">PRs Merged</div>
+            </div>
+        </div>
+        <div class="stats-sub">
+            <span>Total Items: <strong id="stat-total">-</strong></span>
+            <span>PRs Closed: <strong id="stat-prs-closed">-</strong></span>
+        </div>
+        <div class="stats-sync" id="stat-sync">Syncing...</div>
     </div>
 
     <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
@@ -556,23 +618,19 @@ const html = `<!DOCTYPE html>
 
         function drawTotem() {
             totemCtx.clearRect(0, 0, W, H);
-
             for (const p of particles) {
                 p.angle += p.speed;
                 const x = CX + Math.cos(p.angle) * p.orbit;
                 const y = CY + Math.sin(p.angle) * p.orbit;
-
                 totemCtx.beginPath();
                 totemCtx.arc(x, y, p.r + 4, 0, Math.PI * 2);
                 totemCtx.fillStyle = p.glow + '26';
                 totemCtx.fill();
-
                 totemCtx.beginPath();
                 totemCtx.arc(x, y, p.r, 0, Math.PI * 2);
                 totemCtx.fillStyle = p.color;
                 totemCtx.fill();
             }
-
             totemCtx.beginPath();
             totemCtx.arc(CX, CY, 50, 0, Math.PI * 2);
             totemCtx.strokeStyle = '#ffd43b';
@@ -581,19 +639,16 @@ const html = `<!DOCTYPE html>
             totemCtx.lineDashOffset = -performance.now() / 250;
             totemCtx.stroke();
             totemCtx.setLineDash([]);
-
             totemCtx.beginPath();
             totemCtx.arc(CX, CY, 98, 0, Math.PI * 2);
             totemCtx.strokeStyle = 'rgba(255,255,255,0.12)';
             totemCtx.lineWidth = 1;
             totemCtx.stroke();
-
             totemCtx.save();
             totemCtx.translate(CX, CY);
             totemCtx.rotate(performance.now() / 8000);
             drawPolygon(totemCtx, 0, 0, 110, 8, 'rgba(255,255,255,0.05)', 1);
             totemCtx.restore();
-
             const grad = totemCtx.createRadialGradient(CX-14, CY-14, 10, CX, CY, 45);
             grad.addColorStop(0, '#2a1a0a');
             grad.addColorStop(0.7, '#1a0f05');
@@ -605,7 +660,6 @@ const html = `<!DOCTYPE html>
             totemCtx.strokeStyle = '#ffa94d';
             totemCtx.lineWidth = 3;
             totemCtx.stroke();
-
             for (let i = 0; i < 8; i++) {
                 const a = (i / 8) * Math.PI * 2 + performance.now() / 3500;
                 const ix = CX + Math.cos(a) * 38;
@@ -615,13 +669,11 @@ const html = `<!DOCTYPE html>
                 totemCtx.fillStyle = colors[i % colors.length];
                 totemCtx.fill();
             }
-
             totemCtx.fillStyle = '#ffd43b';
             totemCtx.font = 'bold 40px "KaiTi", "STKaiti", "楷体", "SimSun", "宋体", serif';
             totemCtx.textAlign = 'center';
             totemCtx.textBaseline = 'middle';
             totemCtx.fillText('贾', CX, CY + 2);
-
             requestAnimationFrame(drawTotem);
         }
 
@@ -648,16 +700,13 @@ const html = `<!DOCTYPE html>
             const m = String(now.getMonth() + 1).padStart(2, '0');
             const d = String(now.getDate()).padStart(2, '0');
             const wd = ['日','一','二','三','四','五','六'][now.getDay()];
-
             document.getElementById('date').textContent =
                 y + '年' + m + '月' + d + '日';
             document.getElementById('weekday').textContent = '星期' + wd;
-
             const hh = String(now.getHours()).padStart(2, '0');
             const mm = String(now.getMinutes()).padStart(2, '0');
             const ss = String(now.getSeconds()).padStart(2, '0');
             document.getElementById('time').textContent = hh + ':' + mm + ':' + ss;
-
             document.getElementById('millis').textContent = '.' + String(now.getMilliseconds()).padStart(3, '0');
         }
         setInterval(refresh, 16);
@@ -684,12 +733,10 @@ const html = `<!DOCTYPE html>
                     const list = document.getElementById('log-list');
                     const count = document.getElementById('log-count');
                     count.textContent = data.length + ' entries';
-
                     if (data.length === 0) {
                         list.innerHTML = '<div class="log-empty">Waiting for logs...</div>';
                         return;
                     }
-
                     list.innerHTML = data.map(entry =>
                         '<div class="log-item">' +
                             '<span class="log-time">' + entry.time + '</span>' +
@@ -698,17 +745,40 @@ const html = `<!DOCTYPE html>
                             '<span class="log-random">#' + entry.random + '</span>' +
                         '</div>'
                     ).join('');
-
-                    // 自动滚动到底部
                     list.scrollTop = list.scrollHeight;
                 });
         }
 
-        // 日志面板打开时每 3 秒刷新
         setInterval(() => {
             const panel = document.getElementById('log-panel');
             if (panel.classList.contains('open')) fetchLogs();
         }, 3000);
+
+        // ========== 版本号 ==========
+        fetch('/api/version')
+            .then(r => r.json())
+            .then(data => { document.getElementById('version').textContent = data.version; });
+
+        // ========== GitHub 统计 ==========
+        function fetchStats() {
+            fetch('/api/stats')
+                .then(r => r.json())
+                .then(data => {
+                    document.getElementById('stat-issues-open').textContent = data.issues_open;
+                    document.getElementById('stat-issues-closed').textContent = data.issues_closed;
+                    document.getElementById('stat-prs-open').textContent = data.prs_open;
+                    document.getElementById('stat-prs-merged').textContent = data.prs_merged;
+                    document.getElementById('stat-total').textContent = data.total_items;
+                    document.getElementById('stat-prs-closed').textContent = data.prs_closed;
+                    document.getElementById('stat-sync').textContent =
+                        'Last synced: ' + new Date().toLocaleTimeString();
+                })
+                .catch(() => {
+                    document.getElementById('stat-sync').textContent = 'Sync in progress...';
+                });
+        }
+        fetchStats();
+        setInterval(fetchStats, 30000);
     </script>
 </body>
 </html>`
@@ -743,6 +813,23 @@ func main() {
 	log.Printf("[INFO] %s\n", startMsg)
 	appendLog(startMsg, port)
 
+	// 初始化 SQLite
+	if err := initDB("repo_stats.db"); err != nil {
+		log.Fatalf("[FATAL] DB init failed: %v\n", err)
+	}
+	log.Printf("[INFO] Database initialized\n")
+	appendLog("Database initialized", 0)
+
+	// 后台同步 GitHub 数据（首次 + 每 10 分钟）
+	go func() {
+		syncAll()
+		ticker := time.NewTicker(10 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			syncAll()
+		}
+	}()
+
 	// 每 30 秒输出日志
 	go func() {
 		ticker := time.NewTicker(30 * time.Second)
@@ -756,17 +843,44 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, html)
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
+
+	// 中间件
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus: true,
+		LogURI:    true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			log.Printf("[INFO] %s %s %d\n", v.Method, v.URI, v.Status)
+			return nil
+		},
+	}))
+	e.Use(middleware.Recover())
+	e.Use(middleware.CORS())
+
+	// 路由
+	e.GET("/", func(c echo.Context) error {
+		return c.HTML(200, html)
 	})
 
-	http.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(getLogs())
+	e.GET("/api/logs", func(c echo.Context) error {
+		return c.JSON(200, getLogs())
+	})
+
+	e.GET("/api/version", func(c echo.Context) error {
+		return c.JSON(200, map[string]string{"version": version})
+	})
+
+	e.GET("/api/stats", func(c echo.Context) error {
+		s, err := getStats()
+		if err != nil {
+			return c.JSON(500, map[string]string{"error": err.Error()})
+		}
+		return c.JSON(200, s)
 	})
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("http://localhost%s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(e.Start(addr))
 }
