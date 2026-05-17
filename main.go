@@ -1,14 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
-	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gomarten/marten"
+	"github.com/gomarten/marten/middleware"
 )
 
 // 日志存储
@@ -489,7 +490,7 @@ const html = `<!DOCTYPE html>
         </div>
     </div>
 
-    <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
+    <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾 &nbsp;|&nbsp; <span id="version"></span></div>
 
     <script>
         // ========== 闪烁星星背景 ==========
@@ -709,6 +710,11 @@ const html = `<!DOCTYPE html>
             const panel = document.getElementById('log-panel');
             if (panel.classList.contains('open')) fetchLogs();
         }, 3000);
+
+        // ========== 版本号 ==========
+        fetch('/api/version')
+            .then(r => r.json())
+            .then(data => { document.getElementById('version').textContent = data.version; });
     </script>
 </body>
 </html>`
@@ -736,6 +742,8 @@ func findPort(start int) int {
 	return 0
 }
 
+const version = "v0.1.0"
+
 func main() {
 	port := findPort(8080)
 
@@ -756,17 +764,23 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, html)
+	app := marten.New()
+	app.Use(middleware.Logger)
+	app.Use(middleware.Recover)
+
+	app.GET("/", func(c *marten.Ctx) error {
+		return c.Blob(200, "text/html; charset=utf-8", []byte(html))
 	})
 
-	http.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(getLogs())
+	app.GET("/api/logs", func(c *marten.Ctx) error {
+		return c.JSON(200, getLogs())
+	})
+
+	app.GET("/api/version", func(c *marten.Ctx) error {
+		return c.JSON(200, marten.M{"version": version})
 	})
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("http://localhost%s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(app.Run(addr))
 }
