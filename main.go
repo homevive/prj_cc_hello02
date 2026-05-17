@@ -1,14 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
-	"net/http"
 	"sync"
 	"time"
+
+	"github.com/gomarten/marten"
+	"github.com/gomarten/marten/middleware"
 )
 
 // 日志存储
@@ -387,6 +388,18 @@ const html = `<!DOCTYPE html>
             margin-left: 0.1rem;
         }
 
+        /* 导航栏版本号 */
+        .nav-version {
+            padding: 2px 7px;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 0.04em;
+            user-select: none;
+            flex-shrink: 0;
+        }
+
         /* ===== Footer ===== */
         .footer {
             position: relative;
@@ -444,6 +457,7 @@ const html = `<!DOCTYPE html>
                 <span class="logo-icon">贾</span>
                 prj_cc_hello02
             </a>
+            <span class="nav-version" id="version"></span>
             <input type="text" class="navbar-search" placeholder="Search or type a command...">
         </div>
         <div class="navbar-right">
@@ -709,6 +723,11 @@ const html = `<!DOCTYPE html>
             const panel = document.getElementById('log-panel');
             if (panel.classList.contains('open')) fetchLogs();
         }, 3000);
+
+        // ========== 版本号 ==========
+        fetch('/api/version')
+            .then(r => r.json())
+            .then(data => { document.getElementById('version').textContent = data.version; });
     </script>
 </body>
 </html>`
@@ -736,6 +755,8 @@ func findPort(start int) int {
 	return 0
 }
 
+const version = "v0.1.0-pr1"
+
 func main() {
 	port := findPort(8080)
 
@@ -756,17 +777,23 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, html)
+	app := marten.New()
+	app.Use(middleware.Logger)
+	app.Use(middleware.Recover)
+
+	app.GET("/", func(c *marten.Ctx) error {
+		return c.Blob(200, "text/html; charset=utf-8", []byte(html))
 	})
 
-	http.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(getLogs())
+	app.GET("/api/logs", func(c *marten.Ctx) error {
+		return c.JSON(200, getLogs())
+	})
+
+	app.GET("/api/version", func(c *marten.Ctx) error {
+		return c.JSON(200, marten.M{"version": version})
 	})
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("http://localhost%s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(app.Run(addr))
 }
