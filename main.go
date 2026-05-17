@@ -388,6 +388,24 @@ const html = `<!DOCTYPE html>
             margin-left: 0.1rem;
         }
 
+        /* ===== 版本号（左下角） ===== */
+        .version-badge {
+            position: fixed;
+            left: 20px;
+            bottom: 20px;
+            z-index: 5;
+            padding: 4px 10px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.06);
+            background: rgba(22,27,34,0.6);
+            backdrop-filter: blur(8px);
+            -webkit-backdrop-filter: blur(8px);
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.25);
+            letter-spacing: 0.05em;
+            user-select: none;
+        }
+
         /* ===== Footer ===== */
         .footer {
             position: relative;
@@ -490,7 +508,8 @@ const html = `<!DOCTYPE html>
         </div>
     </div>
 
-    <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾 &nbsp;|&nbsp; <span id="version"></span></div>
+    <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
+    <div class="version-badge" id="version"></div>
 
     <script>
         // ========== 闪烁星星背景 ==========
