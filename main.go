@@ -388,22 +388,16 @@ const html = `<!DOCTYPE html>
             margin-left: 0.1rem;
         }
 
-        /* ===== 版本号（左下角） ===== */
-        .version-badge {
-            position: fixed;
-            left: 20px;
-            bottom: 20px;
-            z-index: 5;
-            padding: 4px 10px;
-            border-radius: 4px;
-            border: 1px solid rgba(255,255,255,0.06);
-            background: rgba(22,27,34,0.6);
-            backdrop-filter: blur(8px);
-            -webkit-backdrop-filter: blur(8px);
-            font-size: 0.7rem;
-            color: rgba(255,255,255,0.25);
-            letter-spacing: 0.05em;
+        /* 导航栏版本号 */
+        .nav-version {
+            padding: 2px 7px;
+            border-radius: 3px;
+            border: 1px solid rgba(255,255,255,0.08);
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 0.04em;
             user-select: none;
+            flex-shrink: 0;
         }
 
         /* ===== Footer ===== */
@@ -463,6 +457,7 @@ const html = `<!DOCTYPE html>
                 <span class="logo-icon">贾</span>
                 prj_cc_hello02
             </a>
+            <span class="nav-version" id="version"></span>
             <input type="text" class="navbar-search" placeholder="Search or type a command...">
         </div>
         <div class="navbar-right">
@@ -509,7 +504,6 @@ const html = `<!DOCTYPE html>
     </div>
 
     <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
-    <div class="version-badge" id="version"></div>
 
     <script>
         // ========== 闪烁星星背景 ==========
