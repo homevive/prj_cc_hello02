@@ -45,7 +45,7 @@ func getLogs() []LogEntry {
 	return result
 }
 
-const version = "v0.2.0-pr3"
+const version = "v0.2.0-pr4"
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -422,6 +422,58 @@ const html = `<!DOCTYPE html>
             color: rgba(255,255,255,0.15);
             letter-spacing: 0.04em;
         }
+        .trend-section {
+            margin-top: 1.2rem;
+            padding-top: 1rem;
+            border-top: 1px solid rgba(255,255,255,0.06);
+        }
+        .trend-section h4 {
+            font-size: 0.72rem;
+            color: rgba(255,255,255,0.25);
+            letter-spacing: 0.06em;
+            margin-bottom: 0.7rem;
+        }
+        .trend-sparkline {
+            display: flex;
+            align-items: flex-end;
+            gap: 3px;
+            height: 40px;
+            margin-bottom: 0.8rem;
+        }
+        .trend-bar {
+            flex: 1;
+            min-width: 4px;
+            border-radius: 2px 2px 0 0;
+            background: linear-gradient(to top, #58a6ff, #bc8cff);
+            opacity: 0.7;
+            transition: height 0.5s ease;
+            position: relative;
+        }
+        .trend-bar:first-child {
+            opacity: 1;
+            background: linear-gradient(to top, #69db7c, #58a6ff);
+        }
+        .trend-deltas {
+            display: flex;
+            gap: 1.2rem;
+            flex-wrap: wrap;
+            font-size: 0.7rem;
+        }
+        .trend-delta {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            letter-spacing: 0.03em;
+        }
+        .trend-delta.up { color: #69db7c; }
+        .trend-delta.down { color: #f85149; }
+        .trend-delta.flat { color: rgba(255,255,255,0.25); }
+        .trend-no-data {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.15);
+            text-align: center;
+            padding: 0.6rem 0;
+        }
 
         /* ===== Footer ===== */
         .footer {
@@ -549,6 +601,12 @@ const html = `<!DOCTYPE html>
             <span>PRs Closed: <strong id="stat-prs-closed">-</strong></span>
         </div>
         <div class="stats-sync" id="stat-sync">Syncing...</div>
+        <div class="trend-section">
+            <h4>Trend (12 snapshots)</h4>
+            <div class="trend-sparkline" id="trend-sparkline"></div>
+            <div class="trend-deltas" id="trend-deltas"></div>
+            <div class="trend-no-data" id="trend-no-data" style="display:none">Collecting snapshots...</div>
+        </div>
     </div>
 
     <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
@@ -779,6 +837,49 @@ const html = `<!DOCTYPE html>
         }
         fetchStats();
         setInterval(fetchStats, 30000);
+
+        function fetchTrends() {
+            fetch('/api/trends')
+                .then(r => r.json())
+                .then(data => {
+                    const sparkline = document.getElementById('trend-sparkline');
+                    const deltas = document.getElementById('trend-deltas');
+                    const noData = document.getElementById('trend-no-data');
+                    if (!data || data.length < 2) {
+                        sparkline.innerHTML = '';
+                        deltas.innerHTML = '';
+                        noData.style.display = 'block';
+                        return;
+                    }
+                    noData.style.display = 'none';
+                    const reversed = [...data].reverse();
+                    const maxTotal = Math.max(...reversed.map(s => s.total_items), 1);
+                    sparkline.innerHTML = reversed.map(s => {
+                        const h = Math.round((s.total_items / maxTotal) * 100);
+                        return '<div class="trend-bar" style="height:' + h + '%" title="' +
+                            new Date(s.snapshot_at).toLocaleString() + ': ' + s.total_items + ' items"></div>';
+                    }).join('');
+
+                    const latest = data[0];
+                    const prev = data[1];
+                    const dIssuesOpen = latest.issues_open - prev.issues_open;
+                    const dIssuesClosed = latest.issues_closed - prev.issues_closed;
+                    const dPRsOpen = latest.prs_open - prev.prs_open;
+                    const dPRsMerged = latest.prs_merged - prev.prs_merged;
+                    function deltaEl(label, val) {
+                        let cls = 'flat', sign = '';
+                        if (val > 0) { cls = 'up'; sign = '+'; }
+                        else if (val < 0) { cls = 'down'; }
+                        return '<span class="trend-delta ' + cls + '">' + label + ': <strong>' + sign + val + '</strong></span>';
+                    }
+                    deltas.innerHTML = deltaEl('Issues Open', dIssuesOpen) +
+                        deltaEl('Issues Closed', dIssuesClosed) +
+                        deltaEl('PRs Open', dPRsOpen) +
+                        deltaEl('PRs Merged', dPRsMerged);
+                });
+        }
+        fetchTrends();
+        setInterval(fetchTrends, 60000);
     </script>
 </body>
 </html>`
@@ -820,10 +921,10 @@ func main() {
 	log.Printf("[INFO] Database initialized\n")
 	appendLog("Database initialized", 0)
 
-	// 后台同步 GitHub 数据（首次 + 每 10 分钟）
+	// 后台同步 GitHub 数据（首次 + 每 5 小时）
 	go func() {
 		syncAll()
-		ticker := time.NewTicker(10 * time.Minute)
+		ticker := time.NewTicker(5 * time.Hour)
 		defer ticker.Stop()
 		for range ticker.C {
 			syncAll()
@@ -878,6 +979,17 @@ func main() {
 			return c.JSON(500, map[string]string{"error": err.Error()})
 		}
 		return c.JSON(200, s)
+	})
+
+	e.GET("/api/trends", func(c echo.Context) error {
+		snapshots, err := getTrends(12)
+		if err != nil {
+			return c.JSON(500, map[string]string{"error": err.Error()})
+		}
+		if snapshots == nil {
+			snapshots = []Snapshot{}
+		}
+		return c.JSON(200, snapshots)
 	})
 
 	addr := fmt.Sprintf(":%d", port)

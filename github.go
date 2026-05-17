@@ -193,5 +193,9 @@ func syncAll() {
 		appendLog(fmt.Sprintf("Synced %d PRs", prCount), prCount)
 	}
 
+	if err := saveSnapshot(); err != nil {
+		log.Printf("[INFO] Save snapshot failed: %v\n", err)
+	}
+
 	logStats()
 }

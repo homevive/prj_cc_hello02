@@ -33,6 +33,18 @@ type Stats struct {
 	TotalItems   int `json:"total_items"`
 }
 
+// Snapshot 历史快照
+type Snapshot struct {
+	ID          int       `json:"id"`
+	SnapshotAt  time.Time `json:"snapshot_at"`
+	IssuesOpen  int       `json:"issues_open"`
+	IssuesClosed int      `json:"issues_closed"`
+	PRsOpen     int       `json:"prs_open"`
+	PRsClosed   int       `json:"prs_closed"`
+	PRsMerged   int       `json:"prs_merged"`
+	TotalItems  int       `json:"total_items"`
+}
+
 var db *sql.DB
 
 func initDB(path string) error {
@@ -67,6 +79,22 @@ func initDB(path string) error {
 	}
 
 	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_state ON github_items(state)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS snapshots (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			snapshot_at DATETIME NOT NULL,
+			issues_open INTEGER NOT NULL DEFAULT 0,
+			issues_closed INTEGER NOT NULL DEFAULT 0,
+			prs_open INTEGER NOT NULL DEFAULT 0,
+			prs_closed INTEGER NOT NULL DEFAULT 0,
+			prs_merged INTEGER NOT NULL DEFAULT 0,
+			total_items INTEGER NOT NULL DEFAULT 0
+		)
+	`)
 	return err
 }
 
@@ -129,4 +157,37 @@ func logStats() {
 		s.IssuesOpen, s.IssuesClosed, s.PRsOpen, s.PRsClosed, s.PRsMerged, s.TotalItems)
 	appendLog(fmt.Sprintf("Stats: issues(%d/%d) prs(%d/%d/%d)",
 		s.IssuesOpen, s.IssuesClosed, s.PRsOpen, s.PRsClosed, s.PRsMerged), s.TotalItems)
+}
+
+func saveSnapshot() error {
+	s, err := getStats()
+	if err != nil {
+		return err
+	}
+	_, err = db.Exec(`
+		INSERT INTO snapshots (snapshot_at, issues_open, issues_closed, prs_open, prs_closed, prs_merged, total_items)
+		VALUES (?, ?, ?, ?, ?, ?, ?)
+	`, time.Now(), s.IssuesOpen, s.IssuesClosed, s.PRsOpen, s.PRsClosed, s.PRsMerged, s.TotalItems)
+	return err
+}
+
+func getTrends(limit int) ([]Snapshot, error) {
+	rows, err := db.Query(
+		`SELECT id, snapshot_at, issues_open, issues_closed, prs_open, prs_closed, prs_merged, total_items
+		 FROM snapshots ORDER BY snapshot_at DESC LIMIT ?`, limit,
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var snapshots []Snapshot
+	for rows.Next() {
+		var sn Snapshot
+		if err := rows.Scan(&sn.ID, &sn.SnapshotAt, &sn.IssuesOpen, &sn.IssuesClosed, &sn.PRsOpen, &sn.PRsClosed, &sn.PRsMerged, &sn.TotalItems); err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, sn)
+	}
+	return snapshots, rows.Err()
 }
