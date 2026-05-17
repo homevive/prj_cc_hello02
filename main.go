@@ -1,14 +1,15 @@
 package main
 
 import (
-	"encoding/json"
 	"fmt"
 	"log"
 	"math/rand"
 	"net"
-	"net/http"
 	"sync"
 	"time"
+
+	"github.com/labstack/echo/v4"
+	"github.com/labstack/echo/v4/middleware"
 )
 
 // 日志存储
@@ -842,32 +843,44 @@ func main() {
 		}
 	}()
 
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "text/html; charset=utf-8")
-		fmt.Fprint(w, html)
+	e := echo.New()
+	e.HideBanner = true
+	e.HidePort = true
+
+	// 中间件
+	e.Use(middleware.RequestLoggerWithConfig(middleware.RequestLoggerConfig{
+		LogStatus: true,
+		LogURI:    true,
+		LogValuesFunc: func(c echo.Context, v middleware.RequestLoggerValues) error {
+			log.Printf("[INFO] %s %s %d\n", v.Method, v.URI, v.Status)
+			return nil
+		},
+	}))
+	e.Use(middleware.Recover())
+	e.Use(middleware.CORS())
+
+	// 路由
+	e.GET("/", func(c echo.Context) error {
+		return c.HTML(200, html)
 	})
 
-	http.HandleFunc("/api/logs", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(getLogs())
+	e.GET("/api/logs", func(c echo.Context) error {
+		return c.JSON(200, getLogs())
 	})
 
-	http.HandleFunc("/api/version", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
-		json.NewEncoder(w).Encode(map[string]string{"version": version})
+	e.GET("/api/version", func(c echo.Context) error {
+		return c.JSON(200, map[string]string{"version": version})
 	})
 
-	http.HandleFunc("/api/stats", func(w http.ResponseWriter, r *http.Request) {
-		w.Header().Set("Content-Type", "application/json; charset=utf-8")
+	e.GET("/api/stats", func(c echo.Context) error {
 		s, err := getStats()
 		if err != nil {
-			http.Error(w, err.Error(), 500)
-			return
+			return c.JSON(500, map[string]string{"error": err.Error()})
 		}
-		json.NewEncoder(w).Encode(s)
+		return c.JSON(200, s)
 	})
 
 	addr := fmt.Sprintf(":%d", port)
 	fmt.Printf("http://localhost%s\n", addr)
-	log.Fatal(http.ListenAndServe(addr, nil))
+	log.Fatal(e.Start(addr))
 }
