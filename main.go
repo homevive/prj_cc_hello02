@@ -46,7 +46,7 @@ func getLogs() []LogEntry {
 	return result
 }
 
-const version = "v0.2.0-pr8"
+const version = "v0.2.0-pr9"
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -57,15 +57,14 @@ const html = `<!DOCTYPE html>
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; }
         body {
-            min-height: 100vh;
+            height: 100vh;
             display: flex;
             flex-direction: column;
-            align-items: center;
-            justify-content: center;
+            align-items: stretch;
             background: #0a0a12;
             color: #c9d1d9;
             font-family: 'Courier New', 'Source Code Pro', monospace;
-            overflow-x: hidden;
+            overflow: hidden;
         }
         #stars {
             position: fixed;
@@ -296,15 +295,40 @@ const html = `<!DOCTYPE html>
             margin-top: 40px; font-size: 0.85rem;
         }
 
-        /* ===== 页眉 ===== */
-        .header {
+        /* ===== 主布局：Navbar下方两栏 ===== */
+        .main-layout {
+            flex: 1;
+            display: flex;
+            margin-top: 56px;
+            height: calc(100vh - 56px);
+            overflow: hidden;
             position: relative;
             z-index: 1;
-            margin-bottom: 2rem;
         }
-        .header h1 {
-            font-size: 3.5rem;
-            letter-spacing: 0.3em;
+
+        /* ===== 左侧 Overview 20% ===== */
+        .overview-panel {
+            width: 20%;
+            min-width: 260px;
+            display: flex;
+            flex-direction: column;
+            gap: 0.8rem;
+            padding: 1rem;
+            background: rgba(22,27,34,0.65);
+            border-right: 1px solid rgba(255,255,255,0.06);
+            backdrop-filter: blur(16px);
+            -webkit-backdrop-filter: blur(16px);
+            overflow-y: auto;
+            overflow-x: hidden;
+        }
+        .overview-panel::-webkit-scrollbar { width: 3px; }
+        .overview-panel::-webkit-scrollbar-track { background: transparent; }
+        .overview-panel::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.06); border-radius: 2px; }
+
+        .overview-panel .header { text-align: center; }
+        .overview-panel .header h1 {
+            font-size: 1.6rem;
+            letter-spacing: 0.15em;
             font-weight: 700;
             background: linear-gradient(135deg, #58a6ff 0%, #bc8cff 50%, #f783ac 100%);
             -webkit-background-clip: text;
@@ -312,99 +336,42 @@ const html = `<!DOCTYPE html>
             background-clip: text;
             text-transform: uppercase;
             user-select: none;
-            text-shadow: none;
-            filter: drop-shadow(0 0 18px rgba(188,140,255,0.3));
+            filter: drop-shadow(0 0 10px rgba(188,140,255,0.3));
         }
 
-        /* ===== 玻璃卡片 ===== */
-        .card {
-            position: relative;
-            z-index: 1;
-            display: flex;
-            align-items: center;
-            gap: 3rem;
-            padding: 2.5rem 3.5rem;
-            background: rgba(22,27,34,0.65);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 24px;
-            backdrop-filter: blur(20px);
-            -webkit-backdrop-filter: blur(20px);
-            box-shadow: 0 8px 40px rgba(0,0,0,0.4), inset 0 1px 0 rgba(255,255,255,0.04);
-        }
-        .card-totem { flex-shrink: 0; }
-        #totem { width: 280px; height: 280px; }
-        .card-divider {
-            width: 1px; height: 200px;
-            background: linear-gradient(
-                to bottom,
-                transparent,
-                rgba(255,255,255,0.12) 20%,
-                rgba(255,255,255,0.12) 80%,
-                transparent
-            );
-            flex-shrink: 0;
-        }
-        .card-info {
+        /* 左侧迷你图腾卡片 */
+        .card-mini {
             display: flex;
             flex-direction: column;
-            gap: 1.2rem;
-            min-width: 260px;
+            align-items: center;
+            gap: 0.4rem;
+            padding: 0.8rem;
+            background: rgba(255,255,255,0.02);
+            border: 1px solid rgba(255,255,255,0.05);
+            border-radius: 12px;
         }
-        .card-date { font-size: 1.3rem; color: #8b949e; letter-spacing: 0.05em; }
-        .card-weekday { font-size: 1rem; color: rgba(255,255,255,0.25); margin-top: 0.3rem; }
-        .card-time-wrap { display: flex; align-items: baseline; }
-        .card-time {
-            font-size: 3.6rem; font-weight: 700; color: #e6edf3;
+        .card-mini #totem { width: 120px; height: 120px; }
+        .card-mini .card-date { font-size: 0.7rem; color: #8b949e; letter-spacing: 0.04em; }
+        .card-mini .card-weekday { font-size: 0.65rem; color: rgba(255,255,255,0.18); }
+        .card-mini .card-time-wrap { display: flex; align-items: baseline; }
+        .card-mini .card-time {
+            font-size: 1.4rem; font-weight: 700; color: #e6edf3;
             letter-spacing: 0.04em; font-variant-numeric: tabular-nums;
         }
-        .card-millis { font-size: 1.6rem; font-weight: 400; color: #bc8cff; margin-left: 0.1rem; }
+        .card-mini .card-millis { font-size: 0.8rem; font-weight: 400; color: #bc8cff; margin-left: 0.05rem; }
 
-        /* ===== GitHub 统计面板 ===== */
-        .stats-panel {
-            position: relative;
-            z-index: 1;
-            margin-top: 2rem;
-            width: 100%;
-            max-width: 620px;
-            background: rgba(22,27,34,0.65);
-            border: 1px solid rgba(255,255,255,0.08);
-            border-radius: 16px;
-            backdrop-filter: blur(16px);
-            -webkit-backdrop-filter: blur(16px);
-            padding: 1.5rem 2rem;
+        /* ===== Overview 内容样式 ===== */
+        .overview-section {
+            border-top: 1px solid rgba(255,255,255,0.05);
+            padding-top: 0.6rem;
         }
-        .stats-panel h3 {
-            font-size: 0.85rem;
-            color: #8b949e;
+        .overview-section h3 {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.25);
             letter-spacing: 0.06em;
+            margin-bottom: 0.5rem;
         }
-        .stats-tabs {
-            display: flex;
-            gap: 0;
-            margin-bottom: 1rem;
-            border-bottom: 1px solid rgba(255,255,255,0.06);
-        }
-        .stats-tab {
-            padding: 8px 18px;
-            border: none;
-            background: transparent;
-            color: rgba(255,255,255,0.3);
-            font-size: 0.78rem;
-            font-family: inherit;
-            cursor: pointer;
-            letter-spacing: 0.04em;
-            border-bottom: 2px solid transparent;
-            transition: all 0.2s;
-            margin-bottom: -1px;
-        }
-        .stats-tab:hover { color: #c9d1d9; }
-        .stats-tab.active {
-            color: #58a6ff;
-            border-bottom-color: #58a6ff;
-        }
-        .stats-tab-content { display: none; }
-        .stats-tab-content.active { display: block; }
-        .stats-panel h3 a {
+        .overview-section h3 a {
             color: #58a6ff;
             text-decoration: none;
         }
@@ -412,15 +379,15 @@ const html = `<!DOCTYPE html>
             display: flex;
             align-items: center;
             justify-content: space-between;
-            margin-bottom: 1rem;
+            margin-bottom: 0.5rem;
         }
         .btn-sync {
-            padding: 5px 14px;
-            border-radius: 6px;
+            padding: 4px 10px;
+            border-radius: 5px;
             border: 1px solid rgba(88,166,255,0.35);
             background: rgba(88,166,255,0.08);
             color: #58a6ff;
-            font-size: 0.7rem;
+            font-size: 0.65rem;
             font-family: inherit;
             cursor: pointer;
             letter-spacing: 0.04em;
@@ -437,25 +404,25 @@ const html = `<!DOCTYPE html>
         }
         .stats-grid {
             display: grid;
-            grid-template-columns: repeat(4, 1fr);
-            gap: 1rem;
+            grid-template-columns: repeat(2, 1fr);
+            gap: 0.4rem;
         }
         .stat-card {
             text-align: center;
-            padding: 0.8rem 0.5rem;
-            border-radius: 8px;
+            padding: 0.5rem 0.3rem;
+            border-radius: 6px;
             background: rgba(255,255,255,0.02);
             border: 1px solid rgba(255,255,255,0.04);
         }
         .stat-card .stat-num {
-            font-size: 1.8rem;
+            font-size: 1.3rem;
             font-weight: 700;
             letter-spacing: 0.02em;
         }
         .stat-card .stat-label {
-            font-size: 0.7rem;
-            color: rgba(255,255,255,0.3);
-            margin-top: 0.3rem;
+            font-size: 0.6rem;
+            color: rgba(255,255,255,0.25);
+            margin-top: 0.2rem;
             letter-spacing: 0.04em;
         }
         .stat-open .stat-num { color: #69db7c; }
@@ -463,40 +430,41 @@ const html = `<!DOCTYPE html>
         .stat-merged .stat-num { color: #bc8cff; }
         .stat-total .stat-num { color: #58a6ff; }
         .stats-sub {
-            margin-top: 1.2rem;
+            margin-top: 0.5rem;
             display: flex;
-            gap: 2rem;
-            font-size: 0.72rem;
-            color: rgba(255,255,255,0.25);
+            flex-direction: column;
+            gap: 0.2rem;
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.18);
         }
         .stats-sync {
-            margin-top: 0.8rem;
-            font-size: 0.68rem;
-            color: rgba(255,255,255,0.15);
+            margin-top: 0.4rem;
+            font-size: 0.6rem;
+            color: rgba(255,255,255,0.12);
             letter-spacing: 0.04em;
         }
         .trend-section {
-            margin-top: 1.2rem;
-            padding-top: 1rem;
-            border-top: 1px solid rgba(255,255,255,0.06);
+            margin-top: 0.6rem;
+            padding-top: 0.6rem;
+            border-top: 1px solid rgba(255,255,255,0.05);
         }
         .trend-section h4 {
-            font-size: 0.72rem;
-            color: rgba(255,255,255,0.25);
+            font-size: 0.65rem;
+            color: rgba(255,255,255,0.2);
             letter-spacing: 0.06em;
-            margin-bottom: 0.7rem;
+            margin-bottom: 0.4rem;
         }
         #trend-canvas {
             width: 100%;
-            height: 200px;
-            border-radius: 6px;
+            height: 120px;
+            border-radius: 4px;
             background: rgba(0,0,0,0.2);
         }
         .trend-deltas {
             display: flex;
-            gap: 1.2rem;
-            flex-wrap: wrap;
-            font-size: 0.7rem;
+            flex-direction: column;
+            gap: 0.15rem;
+            font-size: 0.62rem;
         }
         .trend-delta {
             display: flex;
@@ -506,21 +474,30 @@ const html = `<!DOCTYPE html>
         }
         .trend-delta.up { color: #69db7c; }
         .trend-delta.down { color: #f85149; }
-        .trend-delta.flat { color: rgba(255,255,255,0.25); }
+        .trend-delta.flat { color: rgba(255,255,255,0.2); }
         .trend-no-data {
-            font-size: 0.7rem;
-            color: rgba(255,255,255,0.15);
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.12);
             text-align: center;
-            padding: 0.6rem 0;
+            padding: 0.4rem 0;
         }
 
-        /* ===== 明细面板 ===== */
+        /* ===== 右侧 Details 80% ===== */
+        .details-panel {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            padding: 1rem 1.5rem;
+            overflow: hidden;
+            background: rgba(13,17,23,0.55);
+        }
         .detail-filter {
             display: flex;
             gap: 10px;
-            margin-bottom: 1rem;
+            margin-bottom: 0.8rem;
             flex-wrap: wrap;
             align-items: center;
+            flex-shrink: 0;
         }
         .detail-filter select,
         .detail-filter input[type="date"] {
@@ -563,13 +540,12 @@ const html = `<!DOCTYPE html>
             border-color: rgba(88,166,255,0.5);
         }
         .detail-table-wrap {
-            overflow-x: auto;
-            max-height: 360px;
-            overflow-y: auto;
+            flex: 1;
+            overflow: auto;
             border-radius: 6px;
             border: 1px solid rgba(255,255,255,0.06);
         }
-        .detail-table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+        .detail-table-wrap::-webkit-scrollbar { width: 5px; height: 5px; }
         .detail-table-wrap::-webkit-scrollbar-track { background: transparent; }
         .detail-table-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
         .detail-table {
@@ -624,17 +600,18 @@ const html = `<!DOCTYPE html>
             display: flex;
             align-items: center;
             justify-content: center;
-            gap: 8px;
-            margin-top: 0.8rem;
-            font-size: 0.72rem;
+            gap: 6px;
+            margin-top: 0.6rem;
+            font-size: 0.7rem;
+            flex-shrink: 0;
         }
         .detail-pagination button {
-            padding: 5px 12px;
+            padding: 4px 10px;
             border-radius: 4px;
             border: 1px solid rgba(255,255,255,0.1);
             background: transparent;
             color: #c9d1d9;
-            font-size: 0.7rem;
+            font-size: 0.68rem;
             font-family: inherit;
             cursor: pointer;
             transition: all 0.2s;
@@ -648,21 +625,22 @@ const html = `<!DOCTYPE html>
             cursor: not-allowed;
         }
         .detail-pagination .page-info {
-            color: rgba(255,255,255,0.3);
+            color: rgba(255,255,255,0.25);
         }
         .detail-pagination .page-info strong {
             color: #58a6ff;
         }
-
-        /* ===== Footer ===== */
-        .footer {
-            position: relative;
-            z-index: 1;
-            margin-top: 2.5rem;
-            font-size: 0.75rem;
-            color: rgba(255,255,255,0.12);
-            letter-spacing: 0.25em;
+        .details-footer {
+            margin-top: 0.4rem;
+            text-align: center;
+            font-size: 0.62rem;
+            color: rgba(255,255,255,0.08);
+            letter-spacing: 0.2em;
+            flex-shrink: 0;
         }
+
+        /* ===== Footer (hidden in new layout) ===== */
+        .footer { display: none; }
 
         /* ===== 响应式 ===== */
         @media (max-width: 900px) {
@@ -670,7 +648,8 @@ const html = `<!DOCTYPE html>
             .navbar-search:focus { width: 220px; }
             .nav-btn { padding: 6px 10px; font-size: 0.72rem; }
             .log-panel { width: 320px; right: -340px; }
-            .stats-grid { grid-template-columns: repeat(2, 1fr); }
+            .overview-panel { width: 30%; min-width: 220px; }
+            .card-mini #totem { width: 90px; height: 90px; }
         }
         @media (max-width: 750px) {
             .navbar { padding: 0 12px; }
@@ -678,25 +657,18 @@ const html = `<!DOCTYPE html>
             .nav-btn { padding: 4px 8px; font-size: 0.68rem; }
             .navbar-logo span:last-child { display: none; }
             .log-panel { width: 100%; right: -105%; }
-            .card {
+            .main-layout {
                 flex-direction: column;
-                gap: 1.5rem;
-                padding: 2rem;
             }
-            .card-divider {
-                width: 200px; height: 1px;
-                background: linear-gradient(
-                    to right,
-                    transparent,
-                    rgba(255,255,255,0.12) 20%,
-                    rgba(255,255,255,0.12) 80%,
-                    transparent
-                );
+            .overview-panel {
+                width: 100%;
+                min-width: 0;
+                flex-shrink: 0;
+                overflow-y: visible;
+                max-height: none;
             }
-            .card-info { align-items: center; text-align: center; }
-            #totem { width: 220px; height: 220px; }
-            .header h1 { font-size: 2.2rem; letter-spacing: 0.2em; }
-            .stats-panel { max-width: 100%; border-radius: 0; }
+            .details-panel { flex: 1; }
+            .card-mini #totem { width: 80px; height: 80px; }
         }
     </style>
 </head>
@@ -735,67 +707,58 @@ const html = `<!DOCTYPE html>
         </div>
     </div>
 
-    <div class="header">
-        <h1>Hello World</h1>
-    </div>
-
-    <div class="card">
-        <div class="card-totem">
-            <canvas id="totem" width="280" height="280"></canvas>
-        </div>
-        <div class="card-divider"></div>
-        <div class="card-info">
-            <div>
-                <div class="card-date" id="date"></div>
-                <div class="card-weekday" id="weekday"></div>
+    <div class="main-layout">
+        <div class="overview-panel">
+            <div class="header">
+                <h1>Hello World</h1>
             </div>
-            <div class="card-time-wrap">
-                <span class="card-time" id="time"></span><span class="card-millis" id="millis"></span>
+            <div class="card-mini">
+                <canvas id="totem" width="120" height="120"></canvas>
+                <div>
+                    <div class="card-date" id="date"></div>
+                    <div class="card-weekday" id="weekday"></div>
+                </div>
+                <div class="card-time-wrap">
+                    <span class="card-time" id="time"></span><span class="card-millis" id="millis"></span>
+                </div>
+            </div>
+            <div class="overview-section">
+                <div class="stats-header">
+                    <h3><a href="https://github.com/larksuite/cli" target="_blank">larksuite/cli</a></h3>
+                    <button class="btn-sync" id="btn-sync" onclick="manualSync()">Sync Now</button>
+                </div>
+                <div class="stats-grid">
+                    <div class="stat-card stat-open">
+                        <div class="stat-num" id="stat-issues-open">-</div>
+                        <div class="stat-label">Issues Open</div>
+                    </div>
+                    <div class="stat-card stat-closed">
+                        <div class="stat-num" id="stat-issues-closed">-</div>
+                        <div class="stat-label">Issues Closed</div>
+                    </div>
+                    <div class="stat-card stat-open">
+                        <div class="stat-num" id="stat-prs-open">-</div>
+                        <div class="stat-label">PRs Open</div>
+                    </div>
+                    <div class="stat-card stat-merged">
+                        <div class="stat-num" id="stat-prs-merged">-</div>
+                        <div class="stat-label">PRs Merged</div>
+                    </div>
+                </div>
+                <div class="stats-sub">
+                    <span>Total: <strong id="stat-total">-</strong></span>
+                    <span>PRs Closed: <strong id="stat-prs-closed">-</strong></span>
+                </div>
+                <div class="stats-sync" id="stat-sync">Syncing...</div>
+            </div>
+            <div class="trend-section">
+                <h4>Trend</h4>
+                <canvas id="trend-canvas" width="240" height="120"></canvas>
+                <div class="trend-deltas" id="trend-deltas"></div>
+                <div class="trend-no-data" id="trend-no-data" style="display:none">Waiting...</div>
             </div>
         </div>
-    </div>
-
-    <div class="stats-panel">
-        <div class="stats-header">
-            <h3><a href="https://github.com/larksuite/cli" target="_blank">larksuite/cli</a> Repository Stats</h3>
-            <button class="btn-sync" id="btn-sync" onclick="manualSync()">Sync Now</button>
-        </div>
-        <div class="stats-tabs">
-            <button class="stats-tab active" onclick="switchTab('overview')">Overview</button>
-            <button class="stats-tab" onclick="switchTab('details')">Details</button>
-        </div>
-        <div class="stats-tab-content active" id="tab-overview">
-        <div class="stats-grid">
-            <div class="stat-card stat-open">
-                <div class="stat-num" id="stat-issues-open">-</div>
-                <div class="stat-label">Issues Open</div>
-            </div>
-            <div class="stat-card stat-closed">
-                <div class="stat-num" id="stat-issues-closed">-</div>
-                <div class="stat-label">Issues Closed</div>
-            </div>
-            <div class="stat-card stat-open">
-                <div class="stat-num" id="stat-prs-open">-</div>
-                <div class="stat-label">PRs Open</div>
-            </div>
-            <div class="stat-card stat-merged">
-                <div class="stat-num" id="stat-prs-merged">-</div>
-                <div class="stat-label">PRs Merged</div>
-            </div>
-        </div>
-        <div class="stats-sub">
-            <span>Total Items: <strong id="stat-total">-</strong></span>
-            <span>PRs Closed: <strong id="stat-prs-closed">-</strong></span>
-        </div>
-        <div class="stats-sync" id="stat-sync">Syncing...</div>
-        <div class="trend-section">
-            <h4>Trend (12 snapshots)</h4>
-            <canvas id="trend-canvas" width="600" height="200"></canvas>
-            <div class="trend-deltas" id="trend-deltas"></div>
-            <div class="trend-no-data" id="trend-no-data" style="display:none">Collecting snapshots...</div>
-        </div>
-        </div>
-        <div class="stats-tab-content" id="tab-details">
+        <div class="details-panel">
             <div class="detail-filter">
                 <select id="filter-type">
                     <option value="">All Types</option>
@@ -822,15 +785,14 @@ const html = `<!DOCTYPE html>
                         </tr>
                     </thead>
                     <tbody id="detail-tbody">
-                        <tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,0.15);padding:2rem;">Select date range and click Search</td></tr>
+                        <tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,0.12);padding:3rem;">Select date range and click Search</td></tr>
                     </tbody>
                 </table>
             </div>
             <div class="detail-pagination" id="detail-pager"></div>
+            <div class="details-footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
         </div>
     </div>
-
-    <div class="footer">Powered by Golang &nbsp;|&nbsp; 贾氏图腾</div>
 
     <script>
         // ========== 闪烁星星背景 ==========
@@ -879,14 +841,14 @@ const html = `<!DOCTYPE html>
         // ========== 贾姓图腾（五彩光环） ==========
         const totemCanvas = document.getElementById('totem');
         const totemCtx = totemCanvas.getContext('2d');
-        const W = 280, H = 280, CX = 140, CY = 140;
+        const W = 120, H = 120, CX = 60, CY = 60;
         const colors = ['#ff4d6a','#ffa94d','#ffd43b','#69db7c','#4dabf7','#b197fc','#f783ac'];
         const particles = [];
 
         for (let i = 0; i < 220; i++) {
             const ci = Math.floor(Math.random() * colors.length);
             particles.push({
-                orbit: 62 + Math.random() * 62,
+                orbit: 26 + Math.random() * 26,
                 angle: Math.random() * Math.PI * 2,
                 speed: 0.004 + Math.random() * 0.012,
                 r: 1.5 + Math.random() * 2.5,
@@ -911,45 +873,45 @@ const html = `<!DOCTYPE html>
                 totemCtx.fill();
             }
             totemCtx.beginPath();
-            totemCtx.arc(CX, CY, 50, 0, Math.PI * 2);
+            totemCtx.arc(CX, CY, 20, 0, Math.PI * 2);
             totemCtx.strokeStyle = '#ffd43b';
-            totemCtx.lineWidth = 2;
-            totemCtx.setLineDash([5, 10]);
+            totemCtx.lineWidth = 1.5;
+            totemCtx.setLineDash([3, 6]);
             totemCtx.lineDashOffset = -performance.now() / 250;
             totemCtx.stroke();
             totemCtx.setLineDash([]);
             totemCtx.beginPath();
-            totemCtx.arc(CX, CY, 98, 0, Math.PI * 2);
-            totemCtx.strokeStyle = 'rgba(255,255,255,0.12)';
+            totemCtx.arc(CX, CY, 42, 0, Math.PI * 2);
+            totemCtx.strokeStyle = 'rgba(255,255,255,0.1)';
             totemCtx.lineWidth = 1;
             totemCtx.stroke();
             totemCtx.save();
             totemCtx.translate(CX, CY);
             totemCtx.rotate(performance.now() / 8000);
-            drawPolygon(totemCtx, 0, 0, 110, 8, 'rgba(255,255,255,0.05)', 1);
+            drawPolygon(totemCtx, 0, 0, 48, 8, 'rgba(255,255,255,0.05)', 1);
             totemCtx.restore();
-            const grad = totemCtx.createRadialGradient(CX-14, CY-14, 10, CX, CY, 45);
+            const grad = totemCtx.createRadialGradient(CX-6, CY-6, 4, CX, CY, 20);
             grad.addColorStop(0, '#2a1a0a');
             grad.addColorStop(0.7, '#1a0f05');
             grad.addColorStop(1, '#0d0803');
             totemCtx.beginPath();
-            totemCtx.arc(CX, CY, 45, 0, Math.PI * 2);
+            totemCtx.arc(CX, CY, 20, 0, Math.PI * 2);
             totemCtx.fillStyle = grad;
             totemCtx.fill();
             totemCtx.strokeStyle = '#ffa94d';
-            totemCtx.lineWidth = 3;
+            totemCtx.lineWidth = 2;
             totemCtx.stroke();
             for (let i = 0; i < 8; i++) {
                 const a = (i / 8) * Math.PI * 2 + performance.now() / 3500;
-                const ix = CX + Math.cos(a) * 38;
-                const iy = CY + Math.sin(a) * 38;
+                const ix = CX + Math.cos(a) * 16;
+                const iy = CY + Math.sin(a) * 16;
                 totemCtx.beginPath();
-                totemCtx.arc(ix, iy, 4, 0, Math.PI * 2);
+                totemCtx.arc(ix, iy, 2.5, 0, Math.PI * 2);
                 totemCtx.fillStyle = colors[i % colors.length];
                 totemCtx.fill();
             }
             totemCtx.fillStyle = '#ffd43b';
-            totemCtx.font = 'bold 40px "KaiTi", "STKaiti", "楷体", "SimSun", "宋体", serif';
+            totemCtx.font = 'bold 18px "KaiTi", "STKaiti", "楷体", "SimSun", "宋体", serif';
             totemCtx.textAlign = 'center';
             totemCtx.textBaseline = 'middle';
             totemCtx.fillText('贾', CX, CY + 2);
@@ -1220,14 +1182,7 @@ const html = `<!DOCTYPE html>
         fetchTrends();
         setInterval(fetchTrends, 60000);
         window.addEventListener('resize', fetchTrends);
-
-        function switchTab(name) {
-            document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
-            document.querySelectorAll('.stats-tab-content').forEach(c => c.classList.remove('active'));
-            document.querySelector('.stats-tab[onclick*="' + name + '"]').classList.add('active');
-            document.getElementById('tab-' + name).classList.add('active');
-            if (name === 'overview') { fetchTrends(); }
-        }
+        fetchDetails(1);
 
         let detailPage = 1, detailTotal = 0, detailSize = 20;
         function fetchDetails(page) {
