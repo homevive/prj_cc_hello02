@@ -45,7 +45,7 @@ func getLogs() []LogEntry {
 	return result
 }
 
-const version = "v0.2.0-pr4"
+const version = "v0.2.0-pr5"
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -376,11 +376,37 @@ const html = `<!DOCTYPE html>
             font-size: 0.85rem;
             color: #8b949e;
             letter-spacing: 0.06em;
-            margin-bottom: 1rem;
         }
         .stats-panel h3 a {
             color: #58a6ff;
             text-decoration: none;
+        }
+        .stats-header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 1rem;
+        }
+        .btn-sync {
+            padding: 5px 14px;
+            border-radius: 6px;
+            border: 1px solid rgba(88,166,255,0.35);
+            background: rgba(88,166,255,0.08);
+            color: #58a6ff;
+            font-size: 0.7rem;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: all 0.2s;
+            white-space: nowrap;
+        }
+        .btn-sync:hover {
+            background: rgba(88,166,255,0.16);
+            border-color: rgba(88,166,255,0.55);
+        }
+        .btn-sync:disabled {
+            opacity: 0.4;
+            cursor: not-allowed;
         }
         .stats-grid {
             display: grid;
@@ -577,7 +603,10 @@ const html = `<!DOCTYPE html>
     </div>
 
     <div class="stats-panel">
-        <h3><a href="https://github.com/larksuite/cli" target="_blank">larksuite/cli</a> Repository Stats</h3>
+        <div class="stats-header">
+            <h3><a href="https://github.com/larksuite/cli" target="_blank">larksuite/cli</a> Repository Stats</h3>
+            <button class="btn-sync" id="btn-sync" onclick="manualSync()">Sync Now</button>
+        </div>
         <div class="stats-grid">
             <div class="stat-card stat-open">
                 <div class="stat-num" id="stat-issues-open">-</div>
@@ -838,6 +867,32 @@ const html = `<!DOCTYPE html>
         fetchStats();
         setInterval(fetchStats, 30000);
 
+        function manualSync() {
+            const btn = document.getElementById('btn-sync');
+            btn.disabled = true;
+            btn.textContent = 'Syncing...';
+            fetch('/api/sync', { method: 'POST' })
+                .then(r => r.json())
+                .then(data => {
+                    if (data.error) {
+                        document.getElementById('stat-sync').textContent = 'Sync failed: ' + data.error;
+                    } else {
+                        document.getElementById('stat-sync').textContent =
+                            'Last synced: ' + new Date().toLocaleTimeString() +
+                            ' (issues: ' + data.issues + ', PRs: ' + data.prs + ')';
+                        fetchStats();
+                        fetchTrends();
+                    }
+                })
+                .catch(err => {
+                    document.getElementById('stat-sync').textContent = 'Sync error: ' + err;
+                })
+                .finally(() => {
+                    btn.disabled = false;
+                    btn.textContent = 'Sync Now';
+                });
+        }
+
         function fetchTrends() {
             fetch('/api/trends')
                 .then(r => r.json())
@@ -990,6 +1045,25 @@ func main() {
 			snapshots = []Snapshot{}
 		}
 		return c.JSON(200, snapshots)
+	})
+
+	e.POST("/api/sync", func(c echo.Context) error {
+		issueCount, err := syncIssues()
+		if err != nil {
+			log.Printf("[INFO] Manual sync issues error: %v\n", err)
+		}
+		prCount, err := syncPRs()
+		if err != nil {
+			log.Printf("[INFO] Manual sync PRs error: %v\n", err)
+		}
+		if err := saveSnapshot(); err != nil {
+			log.Printf("[INFO] Manual sync save snapshot failed: %v\n", err)
+		}
+		logStats()
+		return c.JSON(200, map[string]int{
+			"issues": issueCount,
+			"prs":    prCount,
+		})
 	})
 
 	addr := fmt.Sprintf(":%d", port)
