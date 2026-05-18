@@ -5,6 +5,7 @@ import (
 	"log"
 	"math/rand"
 	"net"
+	"strconv"
 	"sync"
 	"time"
 
@@ -45,7 +46,7 @@ func getLogs() []LogEntry {
 	return result
 }
 
-const version = "v0.2.0-pr6"
+const version = "v0.2.0-pr7"
 
 const html = `<!DOCTYPE html>
 <html lang="zh-CN">
@@ -377,6 +378,32 @@ const html = `<!DOCTYPE html>
             color: #8b949e;
             letter-spacing: 0.06em;
         }
+        .stats-tabs {
+            display: flex;
+            gap: 0;
+            margin-bottom: 1rem;
+            border-bottom: 1px solid rgba(255,255,255,0.06);
+        }
+        .stats-tab {
+            padding: 8px 18px;
+            border: none;
+            background: transparent;
+            color: rgba(255,255,255,0.3);
+            font-size: 0.78rem;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            border-bottom: 2px solid transparent;
+            transition: all 0.2s;
+            margin-bottom: -1px;
+        }
+        .stats-tab:hover { color: #c9d1d9; }
+        .stats-tab.active {
+            color: #58a6ff;
+            border-bottom-color: #58a6ff;
+        }
+        .stats-tab-content { display: none; }
+        .stats-tab-content.active { display: block; }
         .stats-panel h3 a {
             color: #58a6ff;
             text-decoration: none;
@@ -459,25 +486,11 @@ const html = `<!DOCTYPE html>
             letter-spacing: 0.06em;
             margin-bottom: 0.7rem;
         }
-        .trend-sparkline {
-            display: flex;
-            align-items: flex-end;
-            gap: 3px;
-            height: 40px;
-            margin-bottom: 0.8rem;
-        }
-        .trend-bar {
-            flex: 1;
-            min-width: 4px;
-            border-radius: 2px 2px 0 0;
-            background: linear-gradient(to top, #58a6ff, #bc8cff);
-            opacity: 0.7;
-            transition: height 0.5s ease;
-            position: relative;
-        }
-        .trend-bar:first-child {
-            opacity: 1;
-            background: linear-gradient(to top, #69db7c, #58a6ff);
+        #trend-canvas {
+            width: 100%;
+            height: 200px;
+            border-radius: 6px;
+            background: rgba(0,0,0,0.2);
         }
         .trend-deltas {
             display: flex;
@@ -499,6 +512,146 @@ const html = `<!DOCTYPE html>
             color: rgba(255,255,255,0.15);
             text-align: center;
             padding: 0.6rem 0;
+        }
+
+        /* ===== 明细面板 ===== */
+        .detail-filter {
+            display: flex;
+            gap: 10px;
+            margin-bottom: 1rem;
+            flex-wrap: wrap;
+            align-items: center;
+        }
+        .detail-filter select,
+        .detail-filter input[type="date"] {
+            padding: 6px 10px;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: rgba(0,0,0,0.3);
+            color: #c9d1d9;
+            font-size: 0.74rem;
+            font-family: inherit;
+            outline: none;
+        }
+        .detail-filter select:focus,
+        .detail-filter input[type="date"]:focus {
+            border-color: #58a6ff;
+        }
+        .detail-filter input[type="date"]::-webkit-calendar-picker-indicator {
+            filter: invert(0.7);
+            cursor: pointer;
+        }
+        .detail-filter label {
+            font-size: 0.7rem;
+            color: rgba(255,255,255,0.3);
+            letter-spacing: 0.04em;
+        }
+        .btn-filter {
+            padding: 6px 16px;
+            border-radius: 6px;
+            border: 1px solid rgba(88,166,255,0.35);
+            background: rgba(88,166,255,0.1);
+            color: #58a6ff;
+            font-size: 0.74rem;
+            font-family: inherit;
+            cursor: pointer;
+            letter-spacing: 0.04em;
+            transition: all 0.2s;
+        }
+        .btn-filter:hover {
+            background: rgba(88,166,255,0.18);
+            border-color: rgba(88,166,255,0.5);
+        }
+        .detail-table-wrap {
+            overflow-x: auto;
+            max-height: 360px;
+            overflow-y: auto;
+            border-radius: 6px;
+            border: 1px solid rgba(255,255,255,0.06);
+        }
+        .detail-table-wrap::-webkit-scrollbar { width: 4px; height: 4px; }
+        .detail-table-wrap::-webkit-scrollbar-track { background: transparent; }
+        .detail-table-wrap::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.08); border-radius: 2px; }
+        .detail-table {
+            width: 100%;
+            border-collapse: collapse;
+            font-size: 0.72rem;
+        }
+        .detail-table th {
+            position: sticky;
+            top: 0;
+            background: rgba(22,27,34,0.95);
+            padding: 10px 12px;
+            text-align: left;
+            color: rgba(255,255,255,0.35);
+            letter-spacing: 0.04em;
+            border-bottom: 1px solid rgba(255,255,255,0.08);
+            white-space: nowrap;
+            font-weight: 600;
+        }
+        .detail-table td {
+            padding: 8px 12px;
+            border-bottom: 1px solid rgba(255,255,255,0.03);
+            color: #c9d1d9;
+            white-space: nowrap;
+        }
+        .detail-table tr:hover td {
+            background: rgba(255,255,255,0.02);
+        }
+        .detail-table .col-title {
+            max-width: 280px;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .detail-table .col-title a {
+            color: #58a6ff;
+            text-decoration: none;
+        }
+        .detail-table .col-title a:hover { text-decoration: underline; }
+        .badge {
+            padding: 2px 7px;
+            border-radius: 10px;
+            font-size: 0.65rem;
+            letter-spacing: 0.03em;
+        }
+        .badge-open { background: rgba(105,219,124,0.12); color: #69db7c; }
+        .badge-closed { background: rgba(139,148,158,0.12); color: #8b949e; }
+        .badge-merged { background: rgba(188,140,255,0.12); color: #bc8cff; }
+        .badge-issue { background: rgba(88,166,255,0.1); color: #58a6ff; }
+        .badge-pr { background: rgba(255,169,77,0.1); color: #ffa94d; }
+
+        .detail-pagination {
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            gap: 8px;
+            margin-top: 0.8rem;
+            font-size: 0.72rem;
+        }
+        .detail-pagination button {
+            padding: 5px 12px;
+            border-radius: 4px;
+            border: 1px solid rgba(255,255,255,0.1);
+            background: transparent;
+            color: #c9d1d9;
+            font-size: 0.7rem;
+            font-family: inherit;
+            cursor: pointer;
+            transition: all 0.2s;
+        }
+        .detail-pagination button:hover:not(:disabled) {
+            background: rgba(255,255,255,0.06);
+            border-color: rgba(255,255,255,0.2);
+        }
+        .detail-pagination button:disabled {
+            opacity: 0.3;
+            cursor: not-allowed;
+        }
+        .detail-pagination .page-info {
+            color: rgba(255,255,255,0.3);
+        }
+        .detail-pagination .page-info strong {
+            color: #58a6ff;
         }
 
         /* ===== Footer ===== */
@@ -607,6 +760,11 @@ const html = `<!DOCTYPE html>
             <h3><a href="https://github.com/larksuite/cli" target="_blank">larksuite/cli</a> Repository Stats</h3>
             <button class="btn-sync" id="btn-sync" onclick="manualSync()">Sync Now</button>
         </div>
+        <div class="stats-tabs">
+            <button class="stats-tab active" onclick="switchTab('overview')">Overview</button>
+            <button class="stats-tab" onclick="switchTab('details')">Details</button>
+        </div>
+        <div class="stats-tab-content active" id="tab-overview">
         <div class="stats-grid">
             <div class="stat-card stat-open">
                 <div class="stat-num" id="stat-issues-open">-</div>
@@ -632,9 +790,43 @@ const html = `<!DOCTYPE html>
         <div class="stats-sync" id="stat-sync">Syncing...</div>
         <div class="trend-section">
             <h4>Trend (12 snapshots)</h4>
-            <div class="trend-sparkline" id="trend-sparkline"></div>
+            <canvas id="trend-canvas" width="600" height="200"></canvas>
             <div class="trend-deltas" id="trend-deltas"></div>
             <div class="trend-no-data" id="trend-no-data" style="display:none">Collecting snapshots...</div>
+        </div>
+        </div>
+        <div class="stats-tab-content" id="tab-details">
+            <div class="detail-filter">
+                <select id="filter-type">
+                    <option value="">All Types</option>
+                    <option value="issue">Issues</option>
+                    <option value="pr">Pull Requests</option>
+                </select>
+                <label>From</label>
+                <input type="date" id="filter-start">
+                <label>To</label>
+                <input type="date" id="filter-end">
+                <button class="btn-filter" onclick="fetchDetails(1)">Search</button>
+            </div>
+            <div class="detail-table-wrap">
+                <table class="detail-table">
+                    <thead>
+                        <tr>
+                            <th>#</th>
+                            <th>Title</th>
+                            <th>Type</th>
+                            <th>State</th>
+                            <th>Author</th>
+                            <th>Labels</th>
+                            <th>Updated</th>
+                        </tr>
+                    </thead>
+                    <tbody id="detail-tbody">
+                        <tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,0.15);padding:2rem;">Select date range and click Search</td></tr>
+                    </tbody>
+                </table>
+            </div>
+            <div class="detail-pagination" id="detail-pager"></div>
         </div>
     </div>
 
@@ -893,48 +1085,192 @@ const html = `<!DOCTYPE html>
                 });
         }
 
+        function drawLineChart(canvas, snapshots) {
+            const ctx = canvas.getContext('2d');
+            const W = canvas.width, H = canvas.height;
+            const pad = { top: 12, right: 16, bottom: 32, left: 48 };
+            const pw = W - pad.left - pad.right;
+            const ph = H - pad.top - pad.bottom;
+            ctx.clearRect(0, 0, W, H);
+
+            // Background
+            ctx.fillStyle = 'rgba(13,17,23,0.5)';
+            ctx.fillRect(0, 0, W, H);
+
+            const keys = ['issues_open', 'issues_closed', 'prs_open', 'prs_merged'];
+            const colors = { issues_open: '#69db7c', issues_closed: '#8b949e', prs_open: '#58a6ff', prs_merged: '#bc8cff' };
+            const names = { issues_open: 'Issues Open', issues_closed: 'Issues Closed', prs_open: 'PRs Open', prs_merged: 'PRs Merged' };
+
+            const reversed = [...snapshots].reverse();
+            let maxVal = 1;
+            reversed.forEach(s => keys.forEach(k => { if (s[k] > maxVal) maxVal = s[k]; }));
+            maxVal = Math.ceil(maxVal * 1.15);
+
+            // Grid
+            const gridLines = 5;
+            ctx.strokeStyle = 'rgba(255,255,255,0.04)';
+            ctx.lineWidth = 1;
+            for (let i = 0; i <= gridLines; i++) {
+                const y = pad.top + (ph / gridLines) * i;
+                ctx.beginPath();
+                ctx.moveTo(pad.left, y);
+                ctx.lineTo(W - pad.right, y);
+                ctx.stroke();
+                ctx.fillStyle = 'rgba(255,255,255,0.2)';
+                ctx.font = '9px "Courier New", monospace';
+                ctx.textAlign = 'right';
+                ctx.fillText(Math.round(maxVal - (maxVal / gridLines) * i), pad.left - 6, y + 3);
+            }
+
+            // X-axis labels
+            ctx.fillStyle = 'rgba(255,255,255,0.2)';
+            ctx.textAlign = 'center';
+            const step = Math.max(1, Math.floor(reversed.length / 6));
+            reversed.forEach((s, i) => {
+                if (i % step === 0 || i === reversed.length - 1) {
+                    const x = pad.left + (pw / Math.max(1, reversed.length - 1)) * i;
+                    const d = new Date(s.snapshot_at);
+                    ctx.fillText(
+                        (d.getMonth()+1) + '/' + d.getDate() + ' ' +
+                        String(d.getHours()).padStart(2,'0') + ':00',
+                        x, H - 8
+                    );
+                }
+            });
+
+            // Draw lines
+            keys.forEach(key => {
+                ctx.beginPath();
+                ctx.strokeStyle = colors[key];
+                ctx.lineWidth = 2;
+                ctx.lineJoin = 'round';
+                reversed.forEach((s, i) => {
+                    const x = pad.left + (pw / Math.max(1, reversed.length - 1)) * i;
+                    const y = pad.top + ph - (s[key] / maxVal) * ph;
+                    if (i === 0) ctx.moveTo(x, y); else ctx.lineTo(x, y);
+                });
+                ctx.stroke();
+
+                // Gradient fill
+                const lastX = pad.left + pw;
+                ctx.lineTo(lastX, pad.top + ph);
+                ctx.lineTo(pad.left, pad.top + ph);
+                ctx.closePath();
+                const grad = ctx.createLinearGradient(0, pad.top, 0, pad.top + ph);
+                grad.addColorStop(0, colors[key] + '30');
+                grad.addColorStop(1, colors[key] + '00');
+                ctx.fillStyle = grad;
+                ctx.fill();
+            });
+
+            // Legend
+            let lx = pad.left;
+            ctx.font = '11px "Courier New", monospace';
+            keys.forEach(key => {
+                const tw = ctx.measureText(names[key]).width + 16;
+                ctx.fillStyle = colors[key] + '20';
+                ctx.fillRect(lx, 2, tw, 14);
+                ctx.strokeStyle = colors[key];
+                ctx.lineWidth = 1.5;
+                ctx.strokeRect(lx, 2, tw, 14);
+                ctx.fillStyle = colors[key];
+                ctx.textAlign = 'center';
+                ctx.fillText(names[key], lx + tw / 2, 13);
+                lx += tw + 6;
+            });
+        }
+
         function fetchTrends() {
             fetch('/api/trends')
                 .then(r => r.json())
                 .then(data => {
-                    const sparkline = document.getElementById('trend-sparkline');
+                    const canvas = document.getElementById('trend-canvas');
                     const deltas = document.getElementById('trend-deltas');
                     const noData = document.getElementById('trend-no-data');
                     if (!data || data.length < 2) {
-                        sparkline.innerHTML = '';
+                        canvas.style.display = 'none';
                         deltas.innerHTML = '';
                         noData.style.display = 'block';
                         return;
                     }
+                    canvas.style.display = 'block';
                     noData.style.display = 'none';
-                    const reversed = [...data].reverse();
-                    const maxTotal = Math.max(...reversed.map(s => s.total_items), 1);
-                    sparkline.innerHTML = reversed.map(s => {
-                        const h = Math.round((s.total_items / maxTotal) * 100);
-                        return '<div class="trend-bar" style="height:' + h + '%" title="' +
-                            new Date(s.snapshot_at).toLocaleString() + ': ' + s.total_items + ' items"></div>';
-                    }).join('');
+                    const dpr = window.devicePixelRatio || 1;
+                    const rect = canvas.getBoundingClientRect();
+                    canvas.width = rect.width * dpr;
+                    canvas.height = 200 * dpr;
+                    canvas.getContext('2d').scale(dpr, dpr);
+                    canvas.style.width = rect.width + 'px';
+                    canvas.style.height = '200px';
+                    drawLineChart(canvas, data);
 
-                    const latest = data[0];
-                    const prev = data[1];
-                    const dIssuesOpen = latest.issues_open - prev.issues_open;
-                    const dIssuesClosed = latest.issues_closed - prev.issues_closed;
-                    const dPRsOpen = latest.prs_open - prev.prs_open;
-                    const dPRsMerged = latest.prs_merged - prev.prs_merged;
+                    const latest = data[0], prev = data[1];
                     function deltaEl(label, val) {
                         let cls = 'flat', sign = '';
                         if (val > 0) { cls = 'up'; sign = '+'; }
                         else if (val < 0) { cls = 'down'; }
                         return '<span class="trend-delta ' + cls + '">' + label + ': <strong>' + sign + val + '</strong></span>';
                     }
-                    deltas.innerHTML = deltaEl('Issues Open', dIssuesOpen) +
-                        deltaEl('Issues Closed', dIssuesClosed) +
-                        deltaEl('PRs Open', dPRsOpen) +
-                        deltaEl('PRs Merged', dPRsMerged);
+                    deltas.innerHTML = deltaEl('Issues Open', latest.issues_open - prev.issues_open) +
+                        deltaEl('Issues Closed', latest.issues_closed - prev.issues_closed) +
+                        deltaEl('PRs Open', latest.prs_open - prev.prs_open) +
+                        deltaEl('PRs Merged', latest.prs_merged - prev.prs_merged);
                 });
         }
         fetchTrends();
         setInterval(fetchTrends, 60000);
+        window.addEventListener('resize', fetchTrends);
+
+        function switchTab(name) {
+            document.querySelectorAll('.stats-tab').forEach(t => t.classList.remove('active'));
+            document.querySelectorAll('.stats-tab-content').forEach(c => c.classList.remove('active'));
+            document.querySelector('.stats-tab[onclick*="' + name + '"]').classList.add('active');
+            document.getElementById('tab-' + name).classList.add('active');
+            if (name === 'overview') { fetchTrends(); }
+        }
+
+        let detailPage = 1, detailTotal = 0, detailSize = 20;
+        function fetchDetails(page) {
+            detailPage = page || 1;
+            const type = document.getElementById('filter-type').value;
+            const start = document.getElementById('filter-start').value;
+            const end = document.getElementById('filter-end').value;
+            const params = new URLSearchParams({ type, start, end, page: detailPage, size: detailSize });
+            fetch('/api/items?' + params)
+                .then(r => r.json())
+                .then(data => {
+                    detailTotal = data.total;
+                    const tbody = document.getElementById('detail-tbody');
+                    if (!data.items || data.items.length === 0) {
+                        tbody.innerHTML = '<tr><td colspan="7" style="text-align:center;color:rgba(255,255,255,0.15);padding:2rem;">No results found</td></tr>';
+                        document.getElementById('detail-pager').innerHTML = '';
+                        return;
+                    }
+                    function badge(val, cls) { return '<span class="badge ' + cls + '">' + val + '</span>'; }
+                    tbody.innerHTML = data.items.map(item => {
+                        const d = new Date(item.updated_at);
+                        const ds = d.getFullYear() + '-' + String(d.getMonth()+1).padStart(2,'0') + '-' + String(d.getDate()).padStart(2,'0');
+                        return '<tr>' +
+                            '<td><a href="' + item.url + '" target="_blank" style="color:#58a6ff;text-decoration:none">#' + item.number + '</a></td>' +
+                            '<td class="col-title"><a href="' + item.url + '" target="_blank">' + item.title + '</a></td>' +
+                            '<td>' + badge(item.item_type === 'issue' ? 'Issue' : 'PR', 'badge-' + item.item_type) + '</td>' +
+                            '<td>' + badge(item.state, 'badge-' + item.state) + '</td>' +
+                            '<td>' + (item.author || '-') + '</td>' +
+                            '<td style="max-width:140px;overflow:hidden;text-overflow:ellipsis">' + (item.labels || '-') + '</td>' +
+                            '<td>' + ds + '</td>' +
+                            '</tr>';
+                    }).join('');
+
+                    const totalPages = Math.ceil(detailTotal / detailSize);
+                    const pager = document.getElementById('detail-pager');
+                    pager.innerHTML =
+                        '<button onclick="fetchDetails(1)" ' + (detailPage <= 1 ? 'disabled' : '') + '>First</button>' +
+                        '<button onclick="fetchDetails(' + (detailPage-1) + ')" ' + (detailPage <= 1 ? 'disabled' : '') + '>Prev</button>' +
+                        '<span class="page-info">Page <strong>' + detailPage + '</strong> / ' + totalPages + ' (' + detailTotal + ' items)</span>' +
+                        '<button onclick="fetchDetails(' + (detailPage+1) + ')" ' + (detailPage >= totalPages ? 'disabled' : '') + '>Next</button>' +
+                        '<button onclick="fetchDetails(' + totalPages + ')" ' + (detailPage >= totalPages ? 'disabled' : '') + '>Last</button>';
+                });
+        }
     </script>
 </body>
 </html>`
@@ -1063,6 +1399,38 @@ func main() {
 		return c.JSON(200, map[string]int{
 			"issues": issueCount,
 			"prs":    prCount,
+		})
+	})
+
+	e.GET("/api/items", func(c echo.Context) error {
+		itemType := c.QueryParam("type")
+		startDate := c.QueryParam("start")
+		endDate := c.QueryParam("end")
+		page, _ := strconv.Atoi(c.QueryParam("page"))
+		size, _ := strconv.Atoi(c.QueryParam("size"))
+		if page < 1 {
+			page = 1
+		}
+		if size < 1 || size > 100 {
+			size = 20
+		}
+
+		total, err := countItemsFiltered(itemType, startDate, endDate)
+		if err != nil {
+			return c.JSON(500, map[string]string{"error": err.Error()})
+		}
+		items, err := queryItemsFiltered(itemType, startDate, endDate, size, (page-1)*size)
+		if err != nil {
+			return c.JSON(500, map[string]string{"error": err.Error()})
+		}
+		if items == nil {
+			items = []GitHubItem{}
+		}
+		return c.JSON(200, map[string]interface{}{
+			"items": items,
+			"total": total,
+			"page":  page,
+			"size":  size,
 		})
 	})
 

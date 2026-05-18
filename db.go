@@ -191,3 +191,62 @@ func getTrends(limit int) ([]Snapshot, error) {
 	}
 	return snapshots, rows.Err()
 }
+
+func queryItemsFiltered(itemType, startDate, endDate string, limit, offset int) ([]GitHubItem, error) {
+	where := "WHERE 1=1"
+	args := []interface{}{}
+	if itemType == "issue" || itemType == "pr" {
+		where += " AND item_type=?"
+		args = append(args, itemType)
+	}
+	if startDate != "" {
+		where += " AND updated_at >= ?"
+		args = append(args, startDate+"T00:00:00")
+	}
+	if endDate != "" {
+		where += " AND updated_at <= ?"
+		args = append(args, endDate+"T23:59:59")
+	}
+	q := fmt.Sprintf(`SELECT id, number, title, state, item_type, author, labels, url, created_at, updated_at
+		FROM github_items %s ORDER BY updated_at DESC LIMIT ? OFFSET ?`, where)
+	args = append(args, limit, offset)
+
+	rows, err := db.Query(q, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	var items []GitHubItem
+	for rows.Next() {
+		var item GitHubItem
+		if err := rows.Scan(&item.ID, &item.Number, &item.Title, &item.State, &item.ItemType,
+			&item.Author, &item.Labels, &item.URL, &item.CreatedAt, &item.UpdatedAt); err != nil {
+			return nil, err
+		}
+		items = append(items, item)
+	}
+	return items, rows.Err()
+}
+
+func countItemsFiltered(itemType, startDate, endDate string) (int, error) {
+	where := "WHERE 1=1"
+	args := []interface{}{}
+	if itemType == "issue" || itemType == "pr" {
+		where += " AND item_type=?"
+		args = append(args, itemType)
+	}
+	if startDate != "" {
+		where += " AND updated_at >= ?"
+		args = append(args, startDate+"T00:00:00")
+	}
+	if endDate != "" {
+		where += " AND updated_at <= ?"
+		args = append(args, endDate+"T23:59:59")
+	}
+	q := fmt.Sprintf("SELECT COUNT(*) FROM github_items %s", where)
+
+	var count int
+	err := db.QueryRow(q, args...).Scan(&count)
+	return count, err
+}

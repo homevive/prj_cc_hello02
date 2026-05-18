@@ -2,7 +2,7 @@
 
 基于 Go + Echo v4 的实时时钟 Web 应用，展示贾姓图腾与五彩光环动画，集成 GitHub 仓库 Issue/PR 数据追踪与趋势分析。
 
-当前版本：**v0.2.0-pr6**
+当前版本：**v0.2.0-pr7**
 
 ---
 
@@ -17,6 +17,8 @@
 - **GitHub 风格导航栏** — Dashboard / Pull Requests / Issues / Explore / +New 按钮
 - **日志面板** — 右侧滑出面板，实时显示服务器 INFO 日志（含随机数标记）
 - **响应式布局** — 窄屏自动切换为上下堆叠，移动端友好
+- **Tab 切换** — Overview（总览 + 趋势） / Details（明细查询）双视图
+- **明细查询面板** — 按日期范围、类型筛选，分页浏览 Issue/PR 明细
 
 ### 后端
 
@@ -26,7 +28,8 @@
 - **定时同步** — 每 5 小时自动执行一次同步（可配置）
 - **手动同步** — 页面按钮点击即刻触发同步，实时反馈结果
 - **历史快照** — 每次同步自动记录统计快照，支持趋势分析
-- **趋势面板** — Sparkline 柱状图 + 增量变化指标（↑↓ 数字）
+- **趋势折线图** — 四色折线图（Issues Open/Closed、PRs Open/Merged），横轴为日期时间，带渐变填充和图例，每分钟自动刷新
+- **明细查询 API** — 支持按类型、日期范围分页查询，返回总数和明细
 - **PR 合并检测** — closed 状态的 PR 会二次查询确认是否已合并
 
 ---
@@ -144,6 +147,44 @@ go build -o prj_cc_hello02.exe .
 
 ```json
 { "issues": 42, "prs": 58 }
+```
+
+### `GET /api/items`
+
+分页查询 Issue/PR 明细，支持按类型和日期范围筛选。
+
+**参数：**
+
+| 参数 | 说明 | 示例 |
+|------|------|------|
+| type | 类型筛选 | issue / pr / 空=全部 |
+| start | 起始日期 | 2026-05-01 |
+| end | 截止日期 | 2026-05-18 |
+| page | 页码 | 1 |
+| size | 每页条数（≤100） | 20 |
+
+**响应示例：**
+
+```json
+{
+  "items": [
+    {
+      "id": 4463229004,
+      "number": 929,
+      "title": "form-questions-create: attachment 默认只接收图片",
+      "state": "open",
+      "item_type": "issue",
+      "author": "pipi-HST",
+      "labels": "bug,domain/base",
+      "url": "https://github.com/larksuite/cli/issues/929",
+      "created_at": "2026-05-17T10:54:38Z",
+      "updated_at": "2026-05-17T13:10:47Z"
+    }
+  ],
+  "total": 31,
+  "page": 1,
+  "size": 20
+}
 ```
 
 ---
